@@ -12,6 +12,8 @@ interface CmInputProps {
   className?: string;
   unit?: string;
   unitClassName?: string;
+  formatFn?: (val: number) => string;
+  parseFn?: (text: string, defaultValue: number) => number;
 }
 
 export const CmInput: React.FC<CmInputProps> = ({
@@ -25,16 +27,18 @@ export const CmInput: React.FC<CmInputProps> = ({
   className = '',
   unit = 'cm',
   unitClassName = 'absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-500 font-semibold pointer-events-none',
+  formatFn = formatCm,
+  parseFn = parseCm,
 }) => {
-  const [text, setText] = useState<string>(() => formatCm(value));
+  const [text, setText] = useState<string>(() => formatFn(value));
   const isFocusedRef = useRef<boolean>(false);
 
   // Sync with external value changes when not focused
   useEffect(() => {
     if (!isFocusedRef.current) {
-      setText(formatCm(value));
+      setText(formatFn(value));
     }
-  }, [value]);
+  }, [value, formatFn]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value;
@@ -64,7 +68,7 @@ export const CmInput: React.FC<CmInputProps> = ({
       return;
     }
 
-    const parsed = parseCm(filtered, 0);
+    const parsed = parseFn(filtered, 0);
     if (parsed > 0) {
       const clamped = max !== undefined ? Math.min(max, parsed) : parsed;
       onChange(clamped);
@@ -79,7 +83,7 @@ export const CmInput: React.FC<CmInputProps> = ({
 
   const handleBlur = () => {
     isFocusedRef.current = false;
-    const parsed = parseCm(text, 0);
+    const parsed = parseFn(text, 0);
     let finalVal = parsed;
 
     if (parsed <= 0 || isNaN(parsed)) {
@@ -89,7 +93,7 @@ export const CmInput: React.FC<CmInputProps> = ({
       if (max !== undefined && finalVal > max) finalVal = max;
     }
 
-    setText(formatCm(finalVal));
+    setText(formatFn(finalVal));
     onChange(finalVal);
   };
 

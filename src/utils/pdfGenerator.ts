@@ -95,15 +95,15 @@ export async function generatePosterPdf(
 
     // "RECORTE AQUI" cutting marks (matches TEXTO_BORDA in Python)
     if (config.cutMarks) {
-      pdf.setFont('Helvetica', 'normal');
-      pdf.setFontSize(5.5);
+      pdf.setFont('Helvetica', 'bold');
+      pdf.setFontSize(8);
       pdf.setTextColor(74, 84, 105);
 
       const tagText = 'RECORTE AQUI';
 
       // Top margin marks (if row > 0)
       if (sheet.row > 0) {
-        const yTop = Math.max(0.18, config.marginCm - 0.08);
+        const yTop = Math.max(0.25, config.marginCm - 0.1);
         const steps = 5;
         for (let s = 1; s <= steps; s++) {
           const xPos = 0.5 + ((page.width - 1.0) * s) / (steps + 1);
@@ -113,7 +113,7 @@ export async function generatePosterPdf(
 
       // Left margin marks (if col > 0)
       if (sheet.col > 0) {
-        const xLeft = Math.max(0.18, config.marginCm - 0.08);
+        const xLeft = Math.max(0.25, config.marginCm - 0.1);
         const steps = 7;
         for (let s = 1; s <= steps; s++) {
           const yPos = 0.5 + ((page.height - 1.0) * s) / (steps + 1);

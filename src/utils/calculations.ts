@@ -18,7 +18,32 @@ export function formatCm(val: number): string {
   return val.toFixed(1).replace('.', ',');
 }
 
+export function formatCardCm(val: number): string {
+  if (isNaN(val) || val <= 0) return '0,0';
+  const rounded = Math.round(val * 100) / 100;
+  const hasCent = Math.abs(Math.round(rounded * 10) - rounded * 10) > 0.01;
+  if (hasCent) {
+    return rounded.toFixed(2).replace('.', ',');
+  }
+  return rounded.toFixed(1).replace('.', ',');
+}
+
 export function parseCm(text: string, defaultValue: number): number {
+  if (!text) return defaultValue;
+  const num = parseFloat(text.replace(',', '.'));
+  return isNaN(num) || num <= 0 ? defaultValue : num;
+}
+
+export function formatMm(val: number): string {
+  if (isNaN(val) || val <= 0) return '0';
+  const rounded = Math.round(val * 10) / 10;
+  if (rounded % 1 === 0) {
+    return rounded.toFixed(0);
+  }
+  return rounded.toFixed(1).replace('.', ',');
+}
+
+export function parseMm(text: string, defaultValue: number): number {
   if (!text) return defaultValue;
   const num = parseFloat(text.replace(',', '.'));
   return isNaN(num) || num <= 0 ? defaultValue : num;
@@ -166,11 +191,13 @@ export function calculatePosterSheets(
 
 export function calculateMontagemDimensions(
   config: MontagemConfig,
-  imgW: number,
-  imgH: number
+  imgW?: number,
+  imgH?: number
 ): {
   cardW: number;
   cardH: number;
+  cardWMm: number;
+  cardHMm: number;
   areaW: number;
   areaH: number;
   spacing: number;
@@ -180,44 +207,79 @@ export function calculateMontagemDimensions(
   quantity: number;
 } {
   const page = getPageDimensions(config.orientation);
-  const areaW = Math.max(1, page.width - config.marginCm * 2);
-  const areaH = Math.max(1, page.height - config.marginCm * 2);
-  const spacing = config.cardSpacing ? 0.2 : 0;
-  const aspect = imgW / imgH;
+  // Dimensions in mm
+  const pageWMm = Math.round(page.width * 10);
+  const pageHMm = Math.round(page.height * 10);
+  const marginMm = Math.round(config.marginCm * 10);
+  const areaWMm = Math.max(10, pageWMm - marginMm * 2);
+  const areaHMm = Math.max(10, pageHMm - marginMm * 2);
+  const spacingMm = config.cardSpacing ? 2 : 0; // 0.2 cm = 2 mm
 
-  const maxCardW = (areaW - spacing * (config.fH - 1)) / config.fH;
-  const maxCardH = (areaH - spacing * (config.fV - 1)) / config.fV;
+  const fH = Math.max(1, config.fH);
+  const fV = Math.max(1, config.fV);
 
-  let cardW = maxCardW;
-  let cardH = maxCardH;
+  // Maximum available space for cards in mm
+  const availWMm = Math.max(1, areaWMm - spacingMm * (fH - 1));
+  const availHMm = Math.max(1, areaHMm - spacingMm * (fV - 1));
+  const maxCardWMm = availWMm / fH;
+  const maxCardHMm = availHMm / fV;
+
+  let cardWMm: number;
+  let cardHMm: number;
+
+  const hasImage = !!(imgW && imgH && imgW > 0 && imgH > 0);
+  const aspect = hasImage ? (imgW! / imgH!) : (maxCardWMm / maxCardHMm);
 
   if (config.manualSize && config.cardWidthCm > 0 && config.cardHeightCm > 0) {
-    cardW = Math.min(config.cardWidthCm, areaW);
-    cardH = Math.min(config.cardHeightCm, areaH);
-    if (config.keepRatio) {
-      const scale = Math.min(1, areaW / cardW, areaH / cardH);
-      cardW *= scale;
-      cardH *= scale;
+    const userWMm = config.cardWidthCm * 10;
+    const userHMm = config.cardHeightCm * 10;
+    cardWMm = Math.min(userWMm, maxCardWMm);
+    cardHMm = Math.min(userHMm, maxCardHMm);
+
+    if (config.keepRatio && hasImage) {
+      const scale = Math.min(1, maxCardWMm / userWMm, maxCardHMm / userHMm);
+      cardWMm = userWMm * scale;
+      cardHMm = userHMm * scale;
     }
   } else {
-    if (config.keepRatio) {
-      cardW = Math.min(maxCardW, maxCardH * aspect);
-      cardH = cardW / aspect;
+    if (config.keepRatio && hasImage) {
+      // Fit image proportionally into card slot
+      if (maxCardWMm / aspect <= maxCardHMm) {
+        cardWMm = maxCardWMm;
+        cardHMm = cardWMm / aspect;
+      } else {
+        cardHMm = maxCardHMm;
+        cardWMm = cardHMm * aspect;
+      }
     } else {
-      cardW = maxCardW;
-      cardH = maxCardH;
+      cardWMm = maxCardWMm;
+      cardHMm = maxCardHMm;
     }
   }
 
-  const capacity = config.fH * config.fV;
+  // Safety cap to strictly guarantee no margin overflow
+  cardWMm = Math.min(cardWMm, maxCardWMm);
+  cardHMm = Math.min(cardHMm, maxCardHMm);
+
+  // Floor to 0.1 mm precision to mathematically guarantee no rounding-up exceeds page margins
+  cardWMm = Math.max(5, Math.floor(cardWMm * 10) / 10);
+  cardHMm = Math.max(5, Math.floor(cardHMm * 10) / 10);
+
+  // In cm for pdf and canvas rendering
+  const cardWCm = Math.round((cardWMm / 10) * 100) / 100;
+  const cardHCm = Math.round((cardHMm / 10) * 100) / 100;
+
+  const capacity = fH * fV;
   const quantity = Math.max(1, Math.min(config.quantity ?? capacity, capacity));
 
   return {
-    cardW: Math.max(0.5, Math.round(cardW * 10) / 10),
-    cardH: Math.max(0.5, Math.round(cardH * 10) / 10),
-    areaW,
-    areaH,
-    spacing,
+    cardW: cardWCm,
+    cardH: cardHCm,
+    cardWMm,
+    cardHMm,
+    areaW: areaWMm / 10,
+    areaH: areaHMm / 10,
+    spacing: spacingMm / 10,
     pageW: page.width,
     pageH: page.height,
     totalCards: capacity,

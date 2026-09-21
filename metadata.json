@@ -1,6 +1,6 @@
 {
-  "name": "Pôster e Montagem A4",
-  "description": "Ferramenta para criação de pôster dividido em folhas A4 e montagem de múltiplos cartões em página A4 com exportação para PDF.",
+  "name": "Montagem - Crie e Imprima",
+  "description": "Crie pôsteres divididos em folhas e faça montagens de múltiplos cartões para impressão e corte com exportação para PDF.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

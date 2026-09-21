@@ -43,25 +43,12 @@ export const MontagemPreview: React.FC<MontagemPreviewProps> = ({ imageInfo, con
   const page = getPageDimensions(config.orientation);
 
   const { cardW, cardH, spacing, pageW, pageH, totalCards, quantity } = useMemo(() => {
-    if (!imageInfo) {
-      return {
-        cardW: 9,
-        cardH: 5,
-        areaW: page.width - config.marginCm * 2,
-        areaH: page.height - config.marginCm * 2,
-        spacing: config.cardSpacing ? 0.2 : 0,
-        pageW: page.width,
-        pageH: page.height,
-        totalCards: config.fH * config.fV,
-        quantity: config.fH * config.fV,
-      };
-    }
-    return calculateMontagemDimensions(config, imageInfo.widthPx, imageInfo.heightPx);
-  }, [imageInfo, config, page.width, page.height]);
+    return calculateMontagemDimensions(config, imageInfo?.widthPx, imageInfo?.heightPx);
+  }, [imageInfo, config]);
 
   if (!imageInfo) {
     return (
-      <div className="w-full aspect-[4/3] min-h-[360px] sm:min-h-[460px] max-h-[620px] bg-white border border-dashed border-slate-300 flex flex-col items-center justify-center p-6 text-center text-slate-500 shadow-xs rounded-xl">
+      <div className="w-full aspect-[4/3] min-h-[360px] sm:min-h-[460px] lg:min-h-[560px] xl:min-h-[620px] bg-white border border-dashed border-slate-300 flex flex-col items-center justify-center p-6 text-center text-slate-500 shadow-xs rounded-xl">
         <div className="w-16 h-16 mb-3 rounded-full bg-blue-50 border border-blue-100 shadow-xs flex items-center justify-center text-blue-600">
           <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.7" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
@@ -69,7 +56,7 @@ export const MontagemPreview: React.FC<MontagemPreviewProps> = ({ imageInfo, con
         </div>
         <p className="font-bold text-slate-800 text-sm sm:text-base">Nenhuma imagem selecionada</p>
         <p className="text-xs text-slate-500 mt-1 max-w-xs">
-          Toque no botão &quot;Inserir Imagem&quot; acima para montar vários cartões na folha A4.
+          Toque no botão &quot;Inserir Imagem&quot; ou arraste um arquivo até aqui para começar.
         </p>
       </div>
     );
@@ -102,7 +89,7 @@ export const MontagemPreview: React.FC<MontagemPreviewProps> = ({ imageInfo, con
       {/* Page Preview Stage */}
       <div
         ref={containerRef}
-        className="relative w-full flex items-center justify-center p-1.5 sm:p-2.5 bg-slate-100/90 border border-slate-200/90 rounded-xl h-[430px] sm:h-[520px] overflow-hidden"
+        className="relative w-full flex items-center justify-center p-1.5 sm:p-2.5 bg-slate-100/90 border border-slate-200/90 rounded-xl h-[430px] sm:h-[520px] lg:h-[560px] xl:h-[620px] overflow-hidden"
       >
         <div
           className="relative bg-white shadow-md border border-slate-300 overflow-hidden"
@@ -122,9 +109,9 @@ export const MontagemPreview: React.FC<MontagemPreviewProps> = ({ imageInfo, con
             }}
           />
 
-          {/* Cards Grid Centered Inside Printable Area */}
+          {/* Cards Grid Aligned to Top-Left of Printable Area */}
           <div
-            className="absolute flex items-center justify-center"
+            className="absolute flex items-start justify-start"
             style={{
               left: `${marginXPx}px`,
               top: `${marginYPx}px`,
@@ -133,7 +120,7 @@ export const MontagemPreview: React.FC<MontagemPreviewProps> = ({ imageInfo, con
             }}
           >
             <div
-              className="grid justify-center items-center"
+              className="grid justify-start items-start"
               style={{
                 gridTemplateColumns: `repeat(${config.fH}, ${cardWPx}px)`,
                 gridTemplateRows: `repeat(${config.fV}, ${cardHPx}px)`,

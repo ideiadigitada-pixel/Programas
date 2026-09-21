@@ -22,8 +22,10 @@ import {
   DPI_PADRAO,
   MARGEM_MINIMA_POSTER,
   MARGEM_MAXIMA_POSTER,
+  MARGEM_PADRAO_POSTER,
   MARGEM_MINIMA_MONTAGEM,
   MARGEM_MAXIMA_MONTAGEM,
+  MARGEM_PADRAO_MONTAGEM,
   LIMITE_MAX_POSTER_CM,
 } from './types';
 import {
@@ -31,9 +33,8 @@ import {
   calculatePosterWithFixedSheets,
   calculatePosterSheets,
   calculateMontagemDimensions,
-  getPosterOrientationSuggestion,
-  getMontagemOrientationSuggestion,
   formatCm,
+  formatCardCm,
   parseCm,
   getPageDimensions,
 } from './utils/calculations';
@@ -55,29 +56,43 @@ export default function App() {
   // Poster configuration state
   const [posterConfig, setPosterConfig] = useState<PosterConfig>({
     orientation: 'vertical',
-    widthCm: 19.8,
-    heightCm: 28.5,
+    widthCm: 19.4,
+    heightCm: 28.1,
     fH: 1,
     fV: 1,
-    marginCm: MARGEM_MINIMA_POSTER,
+    marginCm: MARGEM_PADRAO_POSTER,
     keepRatio: true,
     cutBorder: false,
     cutMarks: true,
   });
 
   // Montagem configuration state
-  const [montagemConfig, setMontagemConfig] = useState<MontagemConfig>({
-    orientation: 'vertical',
-    fH: 2,
-    fV: 4,
-    cardWidthCm: 9.0,
-    cardHeightCm: 5.0,
-    marginCm: MARGEM_MINIMA_MONTAGEM,
-    keepRatio: true,
-    cardBorder: true,
-    cardSpacing: true,
-    manualSize: false,
-    quantity: undefined,
+  const [montagemConfig, setMontagemConfig] = useState<MontagemConfig>(() => {
+    const initialDims = calculateMontagemDimensions({
+      orientation: 'vertical',
+      fH: 2,
+      fV: 4,
+      cardWidthCm: 10.1,
+      cardHeightCm: 7.2,
+      marginCm: MARGEM_PADRAO_MONTAGEM,
+      keepRatio: true,
+      cardBorder: false,
+      cardSpacing: false,
+      manualSize: false,
+    });
+    return {
+      orientation: 'vertical',
+      fH: 2,
+      fV: 4,
+      cardWidthCm: initialDims.cardW,
+      cardHeightCm: initialDims.cardH,
+      marginCm: MARGEM_PADRAO_MONTAGEM,
+      keepRatio: true,
+      cardBorder: false,
+      cardSpacing: false,
+      manualSize: false,
+      quantity: undefined,
+    };
   });
 
   // Track the last edited field for keepRatio calculations
@@ -144,6 +159,35 @@ export default function App() {
 
     img.src = objectUrl;
   }, [posterConfig.orientation, posterConfig.marginCm, montagemConfig]);
+
+  // Drag and drop state for desktop & mobile
+  const [isDragging, setIsDragging] = useState(false);
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const file = e.dataTransfer.files[0];
+      if (file.type.startsWith('image/')) {
+        handleLoadImage(file);
+      } else {
+        setErrorMessage('Por favor selecione um arquivo de imagem válido (PNG, JPG, WebP).');
+      }
+    }
+  };
 
   // Handle file input change
   const onFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -241,15 +285,12 @@ export default function App() {
       const newFH = Math.max(1, montagemConfig.fH + delta);
       setMontagemConfig((prev) => {
         const updated = { ...prev, fH: newFH, manualSize: false, quantity: undefined };
-        if (imageInfo) {
-          const dims = calculateMontagemDimensions(updated, imageInfo.widthPx, imageInfo.heightPx);
-          return {
-            ...updated,
-            cardWidthCm: dims.cardW,
-            cardHeightCm: dims.cardH,
-          };
-        }
-        return updated;
+        const dims = calculateMontagemDimensions(updated, imageInfo?.widthPx, imageInfo?.heightPx);
+        return {
+          ...updated,
+          cardWidthCm: dims.cardW,
+          cardHeightCm: dims.cardH,
+        };
       });
     }
   };
@@ -289,15 +330,12 @@ export default function App() {
       const newFV = Math.max(1, montagemConfig.fV + delta);
       setMontagemConfig((prev) => {
         const updated = { ...prev, fV: newFV, manualSize: false, quantity: undefined };
-        if (imageInfo) {
-          const dims = calculateMontagemDimensions(updated, imageInfo.widthPx, imageInfo.heightPx);
-          return {
-            ...updated,
-            cardWidthCm: dims.cardW,
-            cardHeightCm: dims.cardH,
-          };
-        }
-        return updated;
+        const dims = calculateMontagemDimensions(updated, imageInfo?.widthPx, imageInfo?.heightPx);
+        return {
+          ...updated,
+          cardWidthCm: dims.cardW,
+          cardHeightCm: dims.cardH,
+        };
       });
     }
   };
@@ -307,10 +345,11 @@ export default function App() {
   // ----------------------------------------------------
   const handleWidthChange = (valInput: number | string) => {
     lastEditedField.current = 'width';
-    const val = typeof valInput === 'number' ? valInput : parseCm(valInput, 0);
-    if (val <= 0) return;
 
     if (mode === 'poster') {
+      const val = typeof valInput === 'number' ? valInput : parseCm(valInput, 0);
+      if (val <= 0) return;
+
       const page = getPageDimensions(posterConfig.orientation);
       const usableW = Math.max(0.1, page.width - posterConfig.marginCm * 2);
       const usableH = Math.max(0.1, page.height - posterConfig.marginCm * 2);
@@ -334,27 +373,34 @@ export default function App() {
         fV: newFV,
       }));
     } else {
-      // Montagem card width
+      // Montagem card width (provided in cm, e.g. 3.41 cm)
+      const valCm = typeof valInput === 'number' ? valInput : parseCm(valInput, 0);
+      if (valCm <= 0) return;
+      const valMm = valCm * 10;
+
       const page = getPageDimensions(montagemConfig.orientation);
-      const areaW = Math.max(1, page.width - montagemConfig.marginCm * 2);
-      const areaH = Math.max(1, page.height - montagemConfig.marginCm * 2);
-      const spacing = montagemConfig.cardSpacing ? 0.2 : 0;
+      const pageWMm = Math.round(page.width * 10);
+      const pageHMm = Math.round(page.height * 10);
+      const marginMm = Math.round(montagemConfig.marginCm * 10);
+      const areaWMm = Math.max(10, pageWMm - marginMm * 2);
+      const areaHMm = Math.max(10, pageHMm - marginMm * 2);
+      const spacingMm = montagemConfig.cardSpacing ? 2 : 0;
 
-      let newCardW = Math.min(areaW, Math.max(0.5, val));
-      let newCardH = montagemConfig.cardHeightCm;
+      let newCardWMm = Math.min(areaWMm, Math.max(5, valMm));
+      let newCardHMm = montagemDims.cardHMm;
 
-      if (montagemConfig.keepRatio && imageInfo && val > 0) {
+      if (montagemConfig.keepRatio && imageInfo && valMm > 0) {
         const aspect = imageInfo.widthPx / imageInfo.heightPx;
-        newCardH = Math.min(areaH, Math.round((newCardW / aspect) * 10) / 10);
+        newCardHMm = Math.min(areaHMm, Math.floor((newCardWMm / aspect) * 10) / 10);
       }
 
-      const fH = Math.max(1, Math.floor((areaW + spacing) / (newCardW + spacing) + 1e-9));
-      const fV = Math.max(1, Math.floor((areaH + spacing) / (newCardH + spacing) + 1e-9));
+      const fH = Math.max(1, Math.floor((areaWMm + spacingMm) / (newCardWMm + spacingMm) + 1e-9));
+      const fV = Math.max(1, Math.floor((areaHMm + spacingMm) / (newCardHMm + spacingMm) + 1e-9));
 
       setMontagemConfig((prev) => ({
         ...prev,
-        cardWidthCm: newCardW,
-        cardHeightCm: newCardH,
+        cardWidthCm: Math.round((newCardWMm / 10) * 100) / 100,
+        cardHeightCm: Math.round((newCardHMm / 10) * 100) / 100,
         fH,
         fV,
         manualSize: true,
@@ -365,10 +411,11 @@ export default function App() {
 
   const handleHeightChange = (valInput: number | string) => {
     lastEditedField.current = 'height';
-    const val = typeof valInput === 'number' ? valInput : parseCm(valInput, 0);
-    if (val <= 0) return;
 
     if (mode === 'poster') {
+      const val = typeof valInput === 'number' ? valInput : parseCm(valInput, 0);
+      if (val <= 0) return;
+
       const page = getPageDimensions(posterConfig.orientation);
       const usableW = Math.max(0.1, page.width - posterConfig.marginCm * 2);
       const usableH = Math.max(0.1, page.height - posterConfig.marginCm * 2);
@@ -392,27 +439,34 @@ export default function App() {
         fV: newFV,
       }));
     } else {
-      // Montagem card height
+      // Montagem card height (provided in cm, e.g. 4.52 cm)
+      const valCm = typeof valInput === 'number' ? valInput : parseCm(valInput, 0);
+      if (valCm <= 0) return;
+      const valMm = valCm * 10;
+
       const page = getPageDimensions(montagemConfig.orientation);
-      const areaW = Math.max(1, page.width - montagemConfig.marginCm * 2);
-      const areaH = Math.max(1, page.height - montagemConfig.marginCm * 2);
-      const spacing = montagemConfig.cardSpacing ? 0.2 : 0;
+      const pageWMm = Math.round(page.width * 10);
+      const pageHMm = Math.round(page.height * 10);
+      const marginMm = Math.round(montagemConfig.marginCm * 10);
+      const areaWMm = Math.max(10, pageWMm - marginMm * 2);
+      const areaHMm = Math.max(10, pageHMm - marginMm * 2);
+      const spacingMm = montagemConfig.cardSpacing ? 2 : 0;
 
-      let newCardH = Math.min(areaH, Math.max(0.5, val));
-      let newCardW = montagemConfig.cardWidthCm;
+      let newCardHMm = Math.min(areaHMm, Math.max(5, valMm));
+      let newCardWMm = montagemDims.cardWMm;
 
-      if (montagemConfig.keepRatio && imageInfo && val > 0) {
+      if (montagemConfig.keepRatio && imageInfo && valMm > 0) {
         const aspect = imageInfo.widthPx / imageInfo.heightPx;
-        newCardW = Math.min(areaW, Math.round((newCardH * aspect) * 10) / 10);
+        newCardWMm = Math.min(areaWMm, Math.floor((newCardHMm * aspect) * 10) / 10);
       }
 
-      const fH = Math.max(1, Math.floor((areaW + spacing) / (newCardW + spacing) + 1e-9));
-      const fV = Math.max(1, Math.floor((areaH + spacing) / (newCardH + spacing) + 1e-9));
+      const fH = Math.max(1, Math.floor((areaWMm + spacingMm) / (newCardWMm + spacingMm) + 1e-9));
+      const fV = Math.max(1, Math.floor((areaHMm + spacingMm) / (newCardHMm + spacingMm) + 1e-9));
 
       setMontagemConfig((prev) => ({
         ...prev,
-        cardWidthCm: newCardW,
-        cardHeightCm: newCardH,
+        cardWidthCm: Math.round((newCardWMm / 10) * 100) / 100,
+        cardHeightCm: Math.round((newCardHMm / 10) * 100) / 100,
         fH,
         fV,
         manualSize: true,
@@ -449,15 +503,12 @@ export default function App() {
     } else {
       setMontagemConfig((prev) => {
         const updated = { ...prev, orientation: newOrientation, manualSize: false, quantity: undefined };
-        if (imageInfo) {
-          const dims = calculateMontagemDimensions(updated, imageInfo.widthPx, imageInfo.heightPx);
-          return {
-            ...updated,
-            cardWidthCm: dims.cardW,
-            cardHeightCm: dims.cardH,
-          };
-        }
-        return updated;
+        const dims = calculateMontagemDimensions(updated, imageInfo?.widthPx, imageInfo?.heightPx);
+        return {
+          ...updated,
+          cardWidthCm: dims.cardW,
+          cardHeightCm: dims.cardH,
+        };
       });
     }
   };
@@ -492,11 +543,15 @@ export default function App() {
         return { ...prev, keepRatio: nextRatio };
       });
     } else {
-      setMontagemConfig((prev) => ({
-        ...prev,
-        keepRatio: !prev.keepRatio,
-        manualSize: false,
-      }));
+      setMontagemConfig((prev) => {
+        const updated = { ...prev, keepRatio: !prev.keepRatio, manualSize: false };
+        const dims = calculateMontagemDimensions(updated, imageInfo?.widthPx, imageInfo?.heightPx);
+        return {
+          ...updated,
+          cardWidthCm: dims.cardW,
+          cardHeightCm: dims.cardH,
+        };
+      });
     }
   };
 
@@ -518,11 +573,15 @@ export default function App() {
       }));
     } else {
       const clamped = Math.max(MARGEM_MINIMA_MONTAGEM, Math.min(val, MARGEM_MAXIMA_MONTAGEM));
-      setMontagemConfig((prev) => ({
-        ...prev,
-        marginCm: clamped,
-        manualSize: false,
-      }));
+      setMontagemConfig((prev) => {
+        const updated = { ...prev, marginCm: clamped, manualSize: false };
+        const dims = calculateMontagemDimensions(updated, imageInfo?.widthPx, imageInfo?.heightPx);
+        return {
+          ...updated,
+          cardWidthCm: dims.cardW,
+          cardHeightCm: dims.cardH,
+        };
+      });
     }
   };
 
@@ -577,46 +636,14 @@ export default function App() {
   }, [imageInfo, posterConfig]);
 
   const montagemDims = useMemo(() => {
-    if (!imageInfo) {
-      return {
-        cardW: montagemConfig.cardWidthCm,
-        cardH: montagemConfig.cardHeightCm,
-        quantity: montagemConfig.quantity ?? (montagemConfig.fH * montagemConfig.fV),
-        totalCards: montagemConfig.fH * montagemConfig.fV,
-        spacing: montagemConfig.cardSpacing ? 0.2 : 0,
-      };
-    }
-    return calculateMontagemDimensions(montagemConfig, imageInfo.widthPx, imageInfo.heightPx);
+    return calculateMontagemDimensions(montagemConfig, imageInfo?.widthPx, imageInfo?.heightPx);
   }, [imageInfo, montagemConfig]);
-
-  const posterSuggestion = useMemo(() => {
-    if (!imageInfo) return null;
-    return getPosterOrientationSuggestion(
-      posterConfig.widthCm,
-      posterConfig.heightCm,
-      posterConfig.orientation,
-      posterConfig.marginCm,
-      posterSheetsData.nonEmptySheets
-    );
-  }, [imageInfo, posterConfig.widthCm, posterConfig.heightCm, posterConfig.orientation, posterConfig.marginCm, posterSheetsData.nonEmptySheets]);
-
-  const montagemSuggestion = useMemo(() => {
-    if (!imageInfo) return null;
-    return getMontagemOrientationSuggestion(
-      montagemDims.cardW,
-      montagemDims.cardH,
-      montagemConfig.orientation,
-      montagemConfig.marginCm,
-      montagemDims.spacing,
-      montagemDims.totalCards
-    );
-  }, [imageInfo, montagemDims, montagemConfig.orientation, montagemConfig.marginCm]);
 
   // Current values for input display
   const currentWidthValue =
-    mode === 'poster' ? posterConfig.widthCm : montagemConfig.cardWidthCm;
+    mode === 'poster' ? posterConfig.widthCm : montagemDims.cardW;
   const currentHeightValue =
-    mode === 'poster' ? posterConfig.heightCm : montagemConfig.cardHeightCm;
+    mode === 'poster' ? posterConfig.heightCm : montagemDims.cardH;
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col items-center">
@@ -629,11 +656,11 @@ export default function App() {
         onChange={onFileSelected}
       />
 
-      {/* Main Container: Mobile focused, responsive up to tablet/desktop */}
-      <main className="w-full max-w-xl sm:max-w-2xl mx-auto px-3.5 sm:px-5 py-4 pb-12 flex flex-col gap-4">
+      {/* Main Container: Mobile single-column with spacious card gaps, Desktop spacious 2-column workspace */}
+      <main className="w-full max-w-xl sm:max-w-2xl lg:max-w-5xl xl:max-w-6xl 2xl:max-w-7xl mx-auto px-3.5 sm:px-5 lg:px-8 py-4 lg:py-7 pb-16 flex flex-col gap-5 sm:gap-6 lg:grid lg:grid-cols-12 lg:gap-6 lg:items-start">
         {/* HEADER / MODE SWITCHER */}
-        <header className="flex flex-col items-center gap-2">
-          <div className="w-full bg-slate-100 p-1 rounded-xl flex border border-slate-200 shadow-xs">
+        <header className="lg:col-span-12 flex flex-col items-center gap-2 mb-1 lg:mb-2">
+          <div className="w-full max-w-xl bg-slate-100 p-1 rounded-xl flex border border-slate-200 shadow-xs">
             <button
               type="button"
               onClick={() => setMode('poster')}
@@ -644,7 +671,7 @@ export default function App() {
               }`}
             >
               <FileText className="w-4 h-4" />
-              <span>CRIAR PÔSTER A4</span>
+              <span>CRIAR PÔSTER</span>
             </button>
             <button
               type="button"
@@ -662,13 +689,21 @@ export default function App() {
 
           <p className="text-[11px] sm:text-xs text-slate-500 text-center">
             {mode === 'poster'
-              ? 'Amplie e divida sua imagem em folhas A4 para impressão e montagem.'
-              : 'Multiplique e organize sua imagem em grade na folha A4 com guias de corte.'}
+              ? 'Amplie e divida sua imagem em folhas A4 para imprimir e montar.'
+              : 'Crie vários cartões em uma folha A4, com guias de corte.'}
           </p>
         </header>
 
-        {/* 1. EM CIMA: BOTÃO DE INSERIR A IMAGEM */}
-        <section id="section-upload" className="w-full">
+        {/* 1. EM CIMA: BOTÃO DE INSERIR A IMAGEM (Desktop: topo coluna direita) */}
+        <section
+          id="section-upload"
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          className={`order-1 lg:order-none lg:col-start-8 lg:col-span-5 xl:col-span-5 2xl:col-start-9 2xl:col-span-4 lg:row-start-2 w-full transition-all ${
+            isDragging ? 'opacity-90 ring-2 ring-blue-500 rounded-xl' : ''
+          }`}
+        >
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
@@ -680,12 +715,14 @@ export default function App() {
 
           {/* If image is selected, show subtle file pill */}
           {imageInfo ? (
-            <div className="mt-2 flex items-center justify-between px-3 py-1.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg text-xs">
-              <div className="flex items-center gap-2 overflow-hidden truncate">
-                <ImageIcon className="w-4 h-4 shrink-0 text-emerald-600" />
-                <span className="font-semibold truncate">{imageInfo.name}</span>
+            <div className="mt-2 flex items-center justify-between gap-2 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs whitespace-nowrap overflow-hidden">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <ImageIcon className="w-3.5 h-3.5 shrink-0 text-slate-500" />
+                <span className="font-semibold text-slate-800 truncate" title={imageInfo.name}>
+                  {imageInfo.name}
+                </span>
               </div>
-              <span className="text-[11px] text-emerald-700 shrink-0 ml-2">
+              <span className="text-[11px] text-slate-500 shrink-0">
                 {imageInfo.widthPx}x{imageInfo.heightPx} px ({formatCm(imageInfo.widthCm)}x{formatCm(imageInfo.heightCm)} cm)
               </span>
             </div>
@@ -703,8 +740,16 @@ export default function App() {
           )}
         </section>
 
-        {/* 2. ÁREA DE VISUALIZAÇÃO */}
-        <section id="section-preview" className="w-full bg-white rounded-2xl p-2 sm:p-4 border border-slate-200 shadow-xs">
+        {/* 2. ÁREA DE VISUALIZAÇÃO (Desktop: coluna esquerda ampla e fixada) */}
+        <section
+          id="section-preview"
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          className={`order-2 lg:order-none lg:col-start-1 lg:col-span-7 xl:col-span-7 2xl:col-span-8 lg:row-start-2 lg:row-span-4 lg:sticky lg:top-4 w-full bg-white rounded-2xl p-2.5 sm:p-4 border transition-all shadow-xs flex flex-col ${
+            isDragging ? 'border-blue-500 ring-2 ring-blue-400/40 bg-blue-50/20' : 'border-slate-200'
+          }`}
+        >
           <div className="flex items-center justify-between mb-2">
             <div className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
               <span>Tamanho:</span>
@@ -712,10 +757,10 @@ export default function App() {
                 {imageInfo
                   ? mode === 'poster'
                     ? `${formatCm(posterConfig.widthCm)} x ${formatCm(posterConfig.heightCm)} cm`
-                    : `${formatCm(montagemDims.cardW)} x ${formatCm(montagemDims.cardH)} cm`
+                    : `${formatCardCm(montagemDims.cardW)} x ${formatCardCm(montagemDims.cardH)} cm`
                   : mode === 'poster'
                   ? 'A4'
-                  : 'Cartão'}
+                  : `${formatCardCm(montagemDims.cardW)} x ${formatCardCm(montagemDims.cardH)} cm`}
               </span>
             </div>
 
@@ -727,14 +772,6 @@ export default function App() {
               </span>
             )}
           </div>
-
-          {/* Suggestions banner */}
-          {imageInfo && (mode === 'poster' ? posterSuggestion : montagemSuggestion) && (
-            <div className="mb-2 px-2.5 py-1.5 bg-red-50 border border-red-200 rounded-lg text-[11px] text-red-700 font-semibold flex items-center gap-1.5 shadow-xs">
-              <Sparkles className="w-3.5 h-3.5 text-red-600 shrink-0" />
-              <span>{mode === 'poster' ? posterSuggestion : montagemSuggestion}</span>
-            </div>
-          )}
 
           {mode === 'poster' ? (
             <PosterPreview imageInfo={imageInfo} config={posterConfig} />
@@ -761,7 +798,7 @@ export default function App() {
                   <button
                     type="button"
                     onClick={() => handleAdjustRows(-1)}
-                    disabled={!imageInfo || (mode === 'poster' ? posterConfig.fV <= 1 : montagemConfig.fV <= 1)}
+                    disabled={mode === 'poster' ? (!imageInfo || posterConfig.fV <= 1) : montagemConfig.fV <= 1}
                     className="flex-1 h-10 bg-white hover:bg-slate-100 active:bg-slate-200 disabled:opacity-40 disabled:cursor-not-allowed border border-slate-300 rounded-lg text-slate-800 font-black text-lg flex items-center justify-center shadow-xs cursor-pointer"
                     title="Diminuir linhas"
                     aria-label="Diminuir linhas"
@@ -771,7 +808,7 @@ export default function App() {
                   <button
                     type="button"
                     onClick={() => handleAdjustRows(1)}
-                    disabled={!imageInfo}
+                    disabled={mode === 'poster' && !imageInfo}
                     className="flex-1 h-10 bg-white hover:bg-blue-50 active:bg-blue-100 disabled:opacity-40 disabled:cursor-not-allowed border border-blue-300 rounded-lg text-blue-700 font-black text-lg flex items-center justify-center shadow-xs cursor-pointer"
                     title="Aumentar linhas"
                     aria-label="Aumentar linhas"
@@ -793,7 +830,7 @@ export default function App() {
                   <button
                     type="button"
                     onClick={() => handleAdjustColumns(-1)}
-                    disabled={!imageInfo || (mode === 'poster' ? posterConfig.fH <= 1 : montagemConfig.fH <= 1)}
+                    disabled={mode === 'poster' ? (!imageInfo || posterConfig.fH <= 1) : montagemConfig.fH <= 1}
                     className="flex-1 h-10 bg-white hover:bg-slate-100 active:bg-slate-200 disabled:opacity-40 disabled:cursor-not-allowed border border-slate-300 rounded-lg text-slate-800 font-black text-lg flex items-center justify-center shadow-xs cursor-pointer"
                     title="Diminuir colunas"
                     aria-label="Diminuir colunas"
@@ -803,7 +840,7 @@ export default function App() {
                   <button
                     type="button"
                     onClick={() => handleAdjustColumns(1)}
-                    disabled={!imageInfo}
+                    disabled={mode === 'poster' && !imageInfo}
                     className="flex-1 h-10 bg-white hover:bg-blue-50 active:bg-blue-100 disabled:opacity-40 disabled:cursor-not-allowed border border-blue-300 rounded-lg text-blue-700 font-black text-lg flex items-center justify-center shadow-xs cursor-pointer"
                     title="Aumentar colunas"
                     aria-label="Aumentar colunas"
@@ -816,8 +853,11 @@ export default function App() {
           </div>
         </section>
 
-        {/* 3. LOGO ABAIXO: O INPUT DE TAMANHO */}
-        <section id="section-size-inputs" className="w-full bg-white rounded-2xl p-3.5 border border-slate-200 shadow-xs flex flex-col gap-2.5">
+        {/* 3. LOGO ABAIXO: O INPUT DE TAMANHO (Desktop: 2º bloco coluna direita) */}
+        <section
+          id="section-size-inputs"
+          className="order-3 lg:order-none lg:col-start-8 lg:col-span-5 xl:col-span-5 2xl:col-start-9 2xl:col-span-4 lg:row-start-3 w-full bg-white rounded-2xl p-3.5 border border-slate-200 shadow-xs flex flex-col gap-2.5"
+        >
           <div className="flex items-center justify-between text-xs font-bold text-slate-800">
             <span>{mode === 'poster' ? 'TAMANHO DO PÔSTER' : 'TAMANHO DO CARTÃO'}</span>
           </div>
@@ -832,11 +872,13 @@ export default function App() {
                 id="input-largura"
                 value={currentWidthValue}
                 onChange={handleWidthChange}
-                placeholder="0,0"
+                placeholder={mode === 'poster' ? '0,0' : '0,00'}
                 disabled={!imageInfo}
                 min={mode === 'poster' ? 1 : 0.5}
-                max={LIMITE_MAX_POSTER_CM}
-                unit=""
+                max={mode === 'poster' ? LIMITE_MAX_POSTER_CM : 50}
+                unit="cm"
+                formatFn={mode === 'poster' ? formatCm : formatCardCm}
+                parseFn={parseCm}
                 className="w-full h-11 px-3 py-2 bg-white border border-slate-300 rounded-xl text-center font-bold text-slate-900 text-base focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100 disabled:opacity-60 shadow-xs"
               />
             </div>
@@ -850,26 +892,46 @@ export default function App() {
                 id="input-altura"
                 value={currentHeightValue}
                 onChange={handleHeightChange}
-                placeholder="0,0"
+                placeholder={mode === 'poster' ? '0,0' : '0,00'}
                 disabled={!imageInfo}
                 min={mode === 'poster' ? 1 : 0.5}
-                max={LIMITE_MAX_POSTER_CM}
-                unit=""
+                max={mode === 'poster' ? LIMITE_MAX_POSTER_CM : 50}
+                unit="cm"
+                formatFn={mode === 'poster' ? formatCm : formatCardCm}
+                parseFn={parseCm}
                 className="w-full h-11 px-3 py-2 bg-white border border-slate-300 rounded-xl text-center font-bold text-slate-900 text-base focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100 disabled:opacity-60 shadow-xs"
               />
             </div>
           </div>
+
+          {/* Manter Proporção */}
+          <div className="pt-1.5 border-t border-slate-100 flex items-center">
+            <label className="flex items-center gap-2 cursor-pointer py-0.5 select-none">
+              <input
+                type="checkbox"
+                checked={mode === 'poster' ? posterConfig.keepRatio : montagemConfig.keepRatio}
+                onChange={handleToggleKeepRatio}
+                className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300 bg-white"
+              />
+              <span className="text-xs font-semibold text-slate-700">
+                Manter proporção
+              </span>
+            </label>
+          </div>
         </section>
 
-        {/* 5. E DEPOIS AS OPÇÕES */}
-        <section id="section-options" className="w-full bg-white rounded-2xl p-3.5 sm:p-4 border border-slate-200 shadow-xs flex flex-col gap-3.5">
+        {/* 5. E DEPOIS AS OPÇÕES (Desktop: 3º bloco coluna direita) */}
+        <section
+          id="section-options"
+          className="order-4 lg:order-none lg:col-start-8 lg:col-span-5 xl:col-span-5 2xl:col-start-9 2xl:col-span-4 lg:row-start-4 w-full bg-white rounded-2xl p-3.5 sm:p-4 border border-slate-200 shadow-xs flex flex-col gap-3.5"
+        >
           <div className="flex items-center justify-between text-xs font-bold text-slate-800">
-            <span>OPÇÕES DE IMPRESSÃO & CORTE</span>
+            <span>IMPRESSÃO E RECORTE</span>
           </div>
 
           {/* Orientação */}
           <div className="flex flex-col gap-1.5">
-            <span className="text-xs font-semibold text-slate-700">Orientação da Folha A4</span>
+            <span className="text-xs font-semibold text-slate-700">Orientação da folha</span>
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
@@ -898,27 +960,12 @@ export default function App() {
             </div>
           </div>
 
-          {/* Manter Proporção */}
-          <div className="pt-1 border-t border-slate-100">
-            <label className="flex items-center gap-2.5 cursor-pointer py-1 select-none">
-              <input
-                type="checkbox"
-                checked={mode === 'poster' ? posterConfig.keepRatio : montagemConfig.keepRatio}
-                onChange={handleToggleKeepRatio}
-                className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300 bg-white"
-              />
-              <span className="text-xs font-semibold text-slate-700">
-                Manter proporção original
-              </span>
-            </label>
-          </div>
-
           {/* Margem da Folha e Quantidade */}
           <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-100">
             {/* Input Margem */}
             <div className="flex flex-col gap-1">
               <label htmlFor="input-margem" className="text-xs font-semibold text-slate-700">
-                Margem da folha (cm)
+                Margem da folha
               </label>
               <CmInput
                 id="input-margem"
@@ -930,7 +977,7 @@ export default function App() {
                 className="w-full h-9 px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-center font-bold text-slate-900 text-xs focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-xs"
               />
               <span className="text-[10px] text-slate-400">
-                {mode === 'poster' ? 'Min 0,6 • Max 0,9' : 'Min 0,4 • Max 0,9'}
+                {mode === 'poster' ? 'Min 0,6 • Max 1,0' : 'Min 0,4 • Max 1,0'}
               </span>
             </div>
 
@@ -983,8 +1030,8 @@ export default function App() {
                     className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300 bg-white"
                   />
                   <div className="flex flex-col">
-                    <span className="text-xs font-semibold text-slate-800">Marcas de recorte (&quot;RECORTE AQUI&quot;)</span>
-                    <span className="text-[11px] text-slate-500">Linhas guia e texto para facilitar a união das folhas</span>
+                    <span className="text-xs font-semibold text-slate-800">RECORTE AQUI</span>
+                    <span className="text-[11px] text-slate-500">Guias para unir as folhas</span>
                   </div>
                 </label>
 
@@ -998,8 +1045,8 @@ export default function App() {
                     className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300 bg-white"
                   />
                   <div className="flex flex-col">
-                    <span className="text-xs font-semibold text-slate-800">Contorno de corte (fundo nas margens)</span>
-                    <span className="text-[11px] text-slate-500">Destaca a área imprimível com contorno visível</span>
+                    <span className="text-xs font-semibold text-slate-800">BORDA DE CORTE</span>
+                    <span className="text-[11px] text-slate-500">Borda cinza para facilitar o corte</span>
                   </div>
                 </label>
               </>
@@ -1015,8 +1062,8 @@ export default function App() {
                     className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300 bg-white"
                   />
                   <div className="flex flex-col">
-                    <span className="text-xs font-semibold text-slate-800">Contorno dos cartões</span>
-                    <span className="text-[11px] text-slate-500">Borda fina para guiar o corte com tesoura ou estilete</span>
+                    <span className="text-xs font-semibold text-slate-800">CONTORNO DOS CARTÕES</span>
+                    <span className="text-[11px] text-slate-500">Borda fina para guiar o corte</span>
                   </div>
                 </label>
 
@@ -1025,13 +1072,21 @@ export default function App() {
                     type="checkbox"
                     checked={montagemConfig.cardSpacing}
                     onChange={(e) =>
-                      setMontagemConfig((prev) => ({ ...prev, cardSpacing: e.target.checked, manualSize: false }))
+                      setMontagemConfig((prev) => {
+                        const updated = { ...prev, cardSpacing: e.target.checked, manualSize: false };
+                        const dims = calculateMontagemDimensions(updated, imageInfo?.widthPx, imageInfo?.heightPx);
+                        return {
+                          ...updated,
+                          cardWidthCm: dims.cardW,
+                          cardHeightCm: dims.cardH,
+                        };
+                      })
                     }
                     className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300 bg-white"
                   />
                   <div className="flex flex-col">
-                    <span className="text-xs font-semibold text-slate-800">Espaçamento entre cartões (2 mm)</span>
-                    <span className="text-[11px] text-slate-500">Respiro entre as imagens na mesma folha</span>
+                    <span className="text-xs font-semibold text-slate-800">ESPAÇAMENTO</span>
+                    <span className="text-[11px] text-slate-500">Espaço entre cartões</span>
                   </div>
                 </label>
               </>
@@ -1039,16 +1094,19 @@ export default function App() {
           </div>
         </section>
 
-        {/* Error notification if any */}
-        {errorMessage && (
-          <div className="w-full bg-red-50 border border-red-200 text-red-700 p-3 rounded-xl text-xs flex items-center gap-2 shadow-xs">
-            <span className="font-bold">Aviso:</span>
-            <span>{errorMessage}</span>
-          </div>
-        )}
+        {/* 6. E O BOTÃO DE SALVAR ABAIXO (Desktop: 4º bloco coluna direita) */}
+        <section
+          id="section-save"
+          className="order-5 lg:order-none lg:col-start-8 lg:col-span-5 xl:col-span-5 2xl:col-start-9 2xl:col-span-4 lg:row-start-5 w-full pt-1"
+        >
+          {/* Error notification if any */}
+          {errorMessage && (
+            <div className="w-full mb-3 bg-red-50 border border-red-200 text-red-700 p-3 rounded-xl text-xs flex items-center gap-2 shadow-xs">
+              <span className="font-bold">Aviso:</span>
+              <span>{errorMessage}</span>
+            </div>
+          )}
 
-        {/* 6. E O BOTÃO DE SALVAR ABAIXO */}
-        <section id="section-save" className="w-full pt-1">
           <button
             type="button"
             onClick={handleExportPdf}
@@ -1069,7 +1127,7 @@ export default function App() {
           </button>
 
           <p className="text-[11px] text-slate-500 font-medium text-center mt-2">
-            Gera um PDF A4 pronto para imprimir em casa ou gráfica com medidas milimétricas.
+            Gere um PDF A4 com medidas precisas, pronto para imprimir.
           </p>
         </section>
       </main>

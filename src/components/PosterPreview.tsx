@@ -57,7 +57,7 @@ export const PosterPreview: React.FC<PosterPreviewProps> = ({ imageInfo, config 
 
   if (!imageInfo) {
     return (
-      <div className="w-full aspect-[4/3] min-h-[360px] sm:min-h-[460px] max-h-[620px] bg-white border border-dashed border-slate-300 flex flex-col items-center justify-center p-6 text-center text-slate-500 shadow-xs rounded-xl">
+      <div className="w-full aspect-[4/3] min-h-[360px] sm:min-h-[460px] lg:min-h-[560px] xl:min-h-[620px] bg-white border border-dashed border-slate-300 flex flex-col items-center justify-center p-6 text-center text-slate-500 shadow-xs rounded-xl">
         <div className="w-16 h-16 mb-3 rounded-full bg-blue-50 border border-blue-100 shadow-xs flex items-center justify-center text-blue-600">
           <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.7" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -65,7 +65,7 @@ export const PosterPreview: React.FC<PosterPreviewProps> = ({ imageInfo, config 
         </div>
         <p className="font-bold text-slate-800 text-sm sm:text-base">Nenhuma imagem selecionada</p>
         <p className="text-xs text-slate-500 mt-1 max-w-xs">
-          Toque no botão &quot;Inserir Imagem&quot; acima para começar a montar seu pôster A4.
+          Toque no botão &quot;Inserir Imagem&quot; ou arraste um arquivo até aqui para começar.
         </p>
       </div>
     );
@@ -108,7 +108,7 @@ export const PosterPreview: React.FC<PosterPreviewProps> = ({ imageInfo, config 
       {/* Page Preview Stage */}
       <div
         ref={containerRef}
-        className="relative w-full flex items-center justify-center p-1.5 sm:p-2.5 bg-slate-100/90 border border-slate-200/90 rounded-xl h-[430px] sm:h-[520px] overflow-hidden"
+        className="relative w-full flex items-center justify-center p-1.5 sm:p-2.5 bg-slate-100/90 border border-slate-200/90 rounded-xl h-[430px] sm:h-[520px] lg:h-[560px] xl:h-[620px] overflow-hidden"
       >
         <div
           className="grid justify-center items-center transition-all duration-150"
