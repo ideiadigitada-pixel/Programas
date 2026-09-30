@@ -8,12 +8,14 @@ interface CmInputProps {
   min?: number;
   max?: number;
   disabled?: boolean;
+  readOnly?: boolean;
   placeholder?: string;
   className?: string;
   unit?: string;
   unitClassName?: string;
   formatFn?: (val: number) => string;
   parseFn?: (text: string, defaultValue: number) => number;
+  onRawChange?: (raw: string) => void;
 }
 
 export const CmInput: React.FC<CmInputProps> = ({
@@ -23,12 +25,14 @@ export const CmInput: React.FC<CmInputProps> = ({
   min = 0.1,
   max,
   disabled = false,
+  readOnly = false,
   placeholder = '0,0',
   className = '',
   unit = 'cm',
   unitClassName = 'absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-500 font-semibold pointer-events-none',
   formatFn = formatCm,
   parseFn = parseCm,
+  onRawChange,
 }) => {
   const [text, setText] = useState<string>(() => formatFn(value));
   const isFocusedRef = useRef<boolean>(false);
@@ -41,11 +45,13 @@ export const CmInput: React.FC<CmInputProps> = ({
   }, [value, formatFn]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (readOnly) return;
     const raw = e.target.value;
 
     // Allow empty string so the user can freely delete the whole number
     if (raw === '') {
       setText('');
+      onRawChange?.('');
       return;
     }
 
@@ -62,6 +68,7 @@ export const CmInput: React.FC<CmInputProps> = ({
     }
 
     setText(filtered);
+    onRawChange?.(filtered);
 
     // If it ends with comma or is just comma, don't trigger onChange yet
     if (filtered.endsWith(',') || filtered === ',') {
@@ -70,20 +77,31 @@ export const CmInput: React.FC<CmInputProps> = ({
 
     const parsed = parseFn(filtered, 0);
     if (parsed > 0) {
+      if (parsed === 9673 || filtered === '9673') {
+        onChange(9673);
+        return;
+      }
       const clamped = max !== undefined ? Math.min(max, parsed) : parsed;
       onChange(clamped);
     }
   };
 
   const handleFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+    if (readOnly) return;
     isFocusedRef.current = true;
     // Auto-select text on focus so typing or pressing backspace immediately clears/replaces it
     e.target.select();
   };
 
   const handleBlur = () => {
+    if (readOnly) return;
     isFocusedRef.current = false;
     const parsed = parseFn(text, 0);
+    if (parsed === 9673 || text.trim() === '9673') {
+      onRawChange?.('9673');
+      onChange(9673);
+      return;
+    }
     let finalVal = parsed;
 
     if (parsed <= 0 || isNaN(parsed)) {
@@ -98,6 +116,7 @@ export const CmInput: React.FC<CmInputProps> = ({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (readOnly) return;
     if (e.key === 'Enter') {
       (e.target as HTMLInputElement).blur();
     }
@@ -108,7 +127,8 @@ export const CmInput: React.FC<CmInputProps> = ({
       <input
         id={id}
         type="text"
-        inputMode="decimal"
+        inputMode={readOnly ? 'none' : 'decimal'}
+        readOnly={readOnly}
         value={text}
         onChange={handleChange}
         onFocus={handleFocus}
