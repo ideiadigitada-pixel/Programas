@@ -224,7 +224,7 @@ export const PdfToWordModal: React.FC<PdfToWordModalProps> = ({ isOpen, onClose 
             </div>
             <div>
               <h3 className="text-sm sm:text-base font-bold text-slate-800 leading-tight">
-                Inserir Páginas de PDF no Word
+                PDF para arquivo Word
               </h3>
               <p className="text-[11px] text-slate-500">
                 {step === 'select_pdf' && 'Etapa 1 de 3: Selecionar PDF'}

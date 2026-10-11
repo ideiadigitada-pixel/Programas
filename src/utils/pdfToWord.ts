@@ -15,11 +15,33 @@ if (typeof window !== 'undefined' && 'Worker' in window) {
   }
 }
 
+import type { PdfPageItem } from '../types';
+
 export interface RenderedPdfPage {
   pageNumber: number;
   widthCm: number;
   heightCm: number;
   imageBytes: Uint8Array;
+}
+
+export function formatPageIntervals(pageNumbers: number[]): string {
+  if (pageNumbers.length === 0) return 'Nenhuma';
+  const sorted = [...pageNumbers].sort((a, b) => a - b);
+  const ranges: string[] = [];
+  let start = sorted[0];
+  let end = start;
+
+  for (let i = 1; i < sorted.length; i++) {
+    if (sorted[i] === end + 1) {
+      end = sorted[i];
+    } else {
+      ranges.push(start === end ? `${start}` : `${start}-${end}`);
+      start = sorted[i];
+      end = start;
+    }
+  }
+  ranges.push(start === end ? `${start}` : `${start}-${end}`);
+  return ranges.join(', ');
 }
 
 /**
@@ -101,6 +123,74 @@ export async function renderPdfPages(
       pageNumber: pageNum,
       widthCm,
       heightCm,
+      imageBytes: imgBuffer,
+    });
+  }
+
+  return results;
+}
+
+/**
+  * Renders ALL pages of a PDF to thumbnail items with dataUrl and raw imageBytes.
+  */
+export async function renderAllPdfPagesToThumbnails(
+  file: File,
+  onProgress?: (current: number, total: number) => void
+): Promise<PdfPageItem[]> {
+  const arrayBuffer = await file.arrayBuffer();
+  const loadingTask = pdfjsLib.getDocument({
+    data: new Uint8Array(arrayBuffer),
+    cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@6.3.289/cmaps/',
+    cMapPacked: true,
+  });
+  const pdfDoc = await loadingTask.promise;
+  const totalPages = pdfDoc.numPages;
+
+  const results: PdfPageItem[] = [];
+
+  for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
+    if (onProgress) {
+      onProgress(pageNum, totalPages);
+    }
+
+    const page = await pdfDoc.getPage(pageNum);
+    const baseViewport = page.getViewport({ scale: 1.0 });
+
+    const widthCm = (baseViewport.width / 72) * 2.54;
+    const heightCm = (baseViewport.height / 72) * 2.54;
+
+    // Scale 1.5x gives sharp thumbnails and quick rendering
+    const renderScale = 1.5;
+    const renderViewport = page.getViewport({ scale: renderScale });
+
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(renderViewport.width);
+    canvas.height = Math.round(renderViewport.height);
+    const ctx = canvas.getContext('2d', { alpha: false });
+
+    if (!ctx) {
+      throw new Error('Falha ao inicializar o renderizador de imagem.');
+    }
+
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // @ts-expect-error canvasContext accepts CanvasRenderingContext2D
+    await page.render({ canvasContext: ctx, viewport: renderViewport }).promise;
+
+    const dataUrl = canvas.toDataURL('image/png');
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
+    if (!blob) {
+      throw new Error(`Falha ao converter página ${pageNum} em imagem.`);
+    }
+
+    const imgBuffer = new Uint8Array(await blob.arrayBuffer());
+    results.push({
+      pageNumber: pageNum,
+      dataUrl,
+      widthCm,
+      heightCm,
+      selected: true,
       imageBytes: imgBuffer,
     });
   }

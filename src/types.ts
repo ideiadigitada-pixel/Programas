@@ -1,7 +1,27 @@
-export type AppMode = 'poster' | 'montagem';
+export type AppMode = 'poster' | 'montagem' | 'letras' | 'dividir' | 'pdf';
 export type Orientation = 'vertical' | 'horizontal';
 export type CropBox = [number, number, number, number]; // [x1, y1, x2, y2] normalizado de 0 a 1
 export type PreviewBgTone = 'dark' | 'medium' | 'light';
+
+export interface PdfPageItem {
+  pageNumber: number;
+  dataUrl: string;
+  widthCm: number;
+  heightCm: number;
+  selected: boolean;
+  imageBytes: Uint8Array;
+}
+
+export interface DividedDrawing {
+  id: number;
+  dataUrl: string;
+  blob?: Blob;
+  width: number;
+  height: number;
+  selected: boolean;
+  x: number;
+  y: number;
+}
 
 export interface ImageInfo {
   name: string;
@@ -25,7 +45,24 @@ export interface PosterConfig {
   cornerMarks?: boolean;
   cutBorder?: boolean;
   includeMontage?: boolean;
+  economizarFolhas?: boolean;
+  aumentarResolucao?: boolean;
   customAspect?: number;
+  emptySlots?: { col: number; row: number }[];
+  activeSheetCount?: number;
+  letrasPorPagina?: boolean;
+  seams?: {
+    horizontalSeams?: { colLeft: number; colRight: number; row: number }[];
+    verticalSeams?: { col: number; rowTop: number; rowBottom: number }[];
+  };
+}
+
+export interface PlacedCardSlot {
+  x: number; // posição X na folha em cm (relativo à margem de 0.4cm)
+  y: number; // posição Y na folha em cm (relativo à margem de 0.4cm)
+  w: number; // largura ocupada na folha em cm
+  h: number; // altura ocupada na folha em cm
+  rotated: boolean; // se o cartão está virado 90 graus
 }
 
 export interface MontagemConfig {
@@ -42,6 +79,9 @@ export interface MontagemConfig {
   manualSize: boolean;
   quantity?: number;
   customAspect?: number;
+  cardRotated?: boolean;
+  mixedLayout?: boolean; // Organizar os cartões na vertical e horizontal
+  mixedSlots?: PlacedCardSlot[];
 }
 
 export const FOLHA_MENOR = 21.0; // cm
@@ -54,4 +94,4 @@ export const MARGEM_FIXA_MONTAGEM = 0.4;
 export const ESPACO_MINIMO_MONTAGEM = 0.0;
 export const ESPACO_MAXIMO_MONTAGEM = 1.0;
 export const ESPACO_PADRAO_MONTAGEM = 0.1;
-export const LIMITE_MAX_POSTER_CM = 600.0;
+export const LIMITE_MAX_POSTER_CM = 400.0; // 4 metros

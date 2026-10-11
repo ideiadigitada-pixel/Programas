@@ -155,7 +155,7 @@ export const CropEditor: React.FC<CropEditorProps> = ({
   return (
     <div
       ref={containerRef}
-      className="relative w-full flex-1 min-h-[380px] sm:min-h-[460px] lg:min-h-0 h-full bg-slate-200/90 border border-slate-300 shadow-inner rounded-xl overflow-hidden select-none flex flex-col justify-between"
+      className="relative w-full flex-1 min-h-[380px] sm:min-h-[460px] lg:min-h-0 h-full bg-slate-200/90 border border-slate-300 rounded-xl overflow-hidden select-none flex flex-col justify-between"
       style={{ touchAction: 'none' }}
     >
       {/* Main Image Display */}
